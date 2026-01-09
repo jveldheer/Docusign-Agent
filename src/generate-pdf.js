@@ -221,10 +221,76 @@ async function generatePDF() {
     yPosition -= 15; // Space between sections
   }
 
-  // Version footer on last page
-  ensureSpace(40);
+  // Signature section
+  ensureSpace(120);
   yPosition -= 20;
 
+  page.drawLine({
+    start: { x: margin, y: yPosition },
+    end: { x: pageWidth - margin, y: yPosition },
+    thickness: 1,
+    color: rgb(0.7, 0.7, 0.7)
+  });
+
+  yPosition -= 25;
+
+  // Signature header
+  page.drawText('ELECTRONIC SIGNATURE', {
+    x: margin,
+    y: yPosition,
+    size: sectionTitleSize,
+    font: helveticaBold,
+    color: rgb(0, 0, 0)
+  });
+  yPosition -= 20;
+
+  page.drawText('By signing below, I acknowledge that I have read, understand, and agree to all terms above.', {
+    x: margin,
+    y: yPosition,
+    size: bodyFontSize,
+    font: helvetica,
+    color: rgb(0.1, 0.1, 0.1)
+  });
+  yPosition -= 35;
+
+  // Signature line with anchor tag for DocuSign
+  page.drawText('/sig/', {
+    x: margin,
+    y: yPosition,
+    size: 2,
+    font: helvetica,
+    color: rgb(1, 1, 1) // White/invisible - anchor for DocuSign
+  });
+
+  page.drawText('Signature: _______________________________________', {
+    x: margin,
+    y: yPosition,
+    size: bodyFontSize,
+    font: helvetica,
+    color: rgb(0.1, 0.1, 0.1)
+  });
+  yPosition -= 25;
+
+  // Date line with anchor tag
+  page.drawText('/date/', {
+    x: margin,
+    y: yPosition,
+    size: 2,
+    font: helvetica,
+    color: rgb(1, 1, 1) // White/invisible - anchor for DocuSign
+  });
+
+  page.drawText('Date: ___________________', {
+    x: margin,
+    y: yPosition,
+    size: bodyFontSize,
+    font: helvetica,
+    color: rgb(0.1, 0.1, 0.1)
+  });
+
+  yPosition -= 30;
+
+  // Version footer
   page.drawLine({
     start: { x: margin, y: yPosition },
     end: { x: pageWidth - margin, y: yPosition },

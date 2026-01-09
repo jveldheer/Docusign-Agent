@@ -13,6 +13,7 @@
     "check-responses": "node src/check-responses.js",
     "test-server": "node src/test-server.js",
     "send-test": "node src/send-test-email.js",
+    "send-test-envelope": "node src/send-test-envelope.js",
     "check-clickwrap": "node src/check-clickwrap.js",
     "list-clickwraps": "node -e \"import('./src/index.js')\"",
     "test": "node --test"
