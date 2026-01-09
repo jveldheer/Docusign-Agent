@@ -1,0 +1,30 @@
+{
+  "name": "docusign-click-agent",
+  "version": "1.0.0",
+  "description": "DocuSign Click Agent for creating and managing clickwrap agreements",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup": "node src/setup.js",
+    "create-clickwrap": "node src/create-clickwrap.js",
+    "generate-pdf": "node src/generate-pdf.js",
+    "list-clickwraps": "node -e \"import('./src/index.js')\"",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "docusign-click": "^3.0.0",
+    "docusign-esign": "^8.0.1",
+    "dotenv": "^16.4.5",
+    "pdf-lib": "^1.17.1",
+    "readline": "^1.3.0"
+  },
+  "keywords": [
+    "docusign",
+    "clickwrap",
+    "agreement",
+    "esign"
+  ],
+  "author": "",
+  "license": "MIT"
+}
