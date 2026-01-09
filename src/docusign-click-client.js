@@ -78,7 +78,8 @@ class DocuSignClickClient {
         hasAccept: true,
         mustRead: true,
         requireAccept: true,
-        sendToEmail: false
+        sendToEmail: false,
+        documentDisplay: 'document'
       },
       requireReacceptance: requireReacceptance,
       documents: documents.map((doc, index) => ({
