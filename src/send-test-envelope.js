@@ -60,15 +60,17 @@ async function sendTestEnvelope() {
 
   // Step 2: Get access token
   console.log('Step 2: Authenticating with DocuSign...');
-  let accessToken;
+  let authResult;
   try {
-    accessToken = await getJWTAccessToken({
+    authResult = await getJWTAccessToken({
       integrationKey,
       userId,
       privateKeyPath,
       environment: env
     });
     console.log('  Authentication successful');
+    console.log(`  Base URI: ${authResult.baseUri}`);
+    console.log(`  Account ID from API: ${authResult.accountId || accountId}`);
   } catch (error) {
     console.error('  Authentication failed:', error.message);
     process.exit(1);
@@ -77,10 +79,10 @@ async function sendTestEnvelope() {
 
   // Step 3: Create and send envelope
   console.log('Step 3: Sending envelope...');
-  const basePath = DocuSignESignClient.getBasePath(env);
+  const basePath = `${authResult.baseUri}/restapi`;
   const esignClient = new DocuSignESignClient({
-    accountId,
-    accessToken,
+    accountId: authResult.accountId || accountId,
+    accessToken: authResult.accessToken,
     basePath
   });
 

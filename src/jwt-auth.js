@@ -74,7 +74,40 @@ async function getJWTAccessToken(config) {
   }
 
   const tokenData = JSON.parse(responseText);
-  return tokenData.access_token;
+  const accessToken = tokenData.access_token;
+
+  // Get user info to find the correct base URI
+  const authServer2 = environment === 'production'
+    ? 'account.docusign.com'
+    : 'account-d.docusign.com';
+
+  const userInfoResponse = await fetch(`https://${authServer2}/oauth/userinfo`, {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  });
+
+  if (userInfoResponse.ok) {
+    const userInfo = await userInfoResponse.json();
+    // Find the account and get its base_uri
+    if (userInfo.accounts && userInfo.accounts.length > 0) {
+      const account = userInfo.accounts[0];
+      return {
+        accessToken,
+        baseUri: account.base_uri,
+        accountId: account.account_id
+      };
+    }
+  }
+
+  // Fallback if userinfo fails
+  return {
+    accessToken,
+    baseUri: environment === 'production'
+      ? 'https://na.docusign.net'
+      : 'https://demo.na.docusign.net',
+    accountId: null
+  };
 }
 
 export { getJWTAccessToken };
