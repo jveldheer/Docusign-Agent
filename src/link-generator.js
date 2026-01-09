@@ -37,28 +37,25 @@ function generateEmbedParams(config, member) {
 
 /**
  * Generate a hosted clickwrap URL for a member
- * DocuSign Click can be embedded or accessed via URL
+ * Points to the GitHub Pages hosted agreement page
  * @param {Object} config - DocuSign Click configuration
  * @param {Object} member - Member data
  * @returns {string} Personalized clickwrap URL
  */
 function generateClickwrapUrl(config, member) {
   const params = generateEmbedParams(config, member);
-  const baseUrl = config.environment === 'production'
-    ? 'https://www.docusign.net'
-    : 'https://demo.docusign.net';
 
-  // DocuSign Click URL with user identification
-  // The clientUserId parameter identifies the signer
+  // Use GitHub Pages hosted agreement page
+  // Format: https://jveldheer.github.io/Docusign-Agent/agreement.html?params
+  const baseUrl = config.landingPageUrl || 'https://jveldheer.github.io/Docusign-Agent/agreement.html';
+
   const queryParams = new URLSearchParams({
-    accountId: params.accountId,
-    clickwrapId: params.clickwrapId,
-    clientUserId: params.clientUserId,
-    fullName: params.clientUserFullName,
+    uid: params.clientUserId,
+    name: params.clientUserFullName,
     email: params.clientUserEmail
   });
 
-  return `${baseUrl}/click/v1/clickwraps/${params.accountId}/${params.clickwrapId}/agreements?${queryParams}`;
+  return `${baseUrl}?${queryParams}`;
 }
 
 /**
