@@ -12,6 +12,7 @@
     "send-agreements": "node src/send-agreements.js",
     "check-responses": "node src/check-responses.js",
     "test-server": "node src/test-server.js",
+    "send-test": "node src/send-test-email.js",
     "list-clickwraps": "node -e \"import('./src/index.js')\"",
     "test": "node --test"
   },
