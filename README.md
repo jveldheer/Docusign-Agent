@@ -1,6 +1,6 @@
 # DocuSign Click Agent
 
-A Node.js agent for creating and managing DocuSign Click agreements for the Veldheer Lineman Vault (VLV) participation agreement.
+A Node.js agent for creating and managing DocuSign Click agreements for the Veldheer Lineman Vault (VLV) participation agreement. Includes automated sending via Mighty Networks DMs and Gmail.
 
 ## What is DocuSign Click?
 
@@ -25,15 +25,7 @@ Features:
 npm install
 ```
 
-### 2. Configure DocuSign
-
-Run the setup wizard:
-
-```bash
-npm run setup
-```
-
-Or manually create a `.env` file:
+### 2. Configure Environment
 
 ```bash
 cp .env.example .env
@@ -46,118 +38,132 @@ cp .env.example .env
 npm run create-clickwrap
 ```
 
-This will:
-1. Generate the PDF agreement
-2. Create the clickwrap in DocuSign
-3. Publish it
-4. Provide embed code for your website
+### 4. Add Member Data
+
+Place your Mighty Networks member export files in the `data/` directory:
+- `plan_Veldheer_Lineman_Vault_Monthly_Plan_members_*.xlsx`
+- `plan__50_Off_Annual_Plan_Veldheer_Lineman_Vault_members_*.xlsx`
+
+### 5. Send to All Members
+
+```bash
+npm run send-agreements
+```
+
+### 6. Track Responses
+
+```bash
+npm run check-responses
+```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
 | `npm run setup` | Interactive setup wizard |
-| `npm run create-clickwrap` | Create VLV participation agreement |
+| `npm run create-clickwrap` | Create VLV clickwrap in DocuSign |
+| `npm run send-agreements` | Send to all active members (DM + Email) |
+| `npm run check-responses` | Check who has accepted |
 | `npm run generate-pdf` | Generate PDF only |
 | `npm start` | Interactive agent menu |
 
-## Getting DocuSign Credentials
+## Configuration
 
-### Account ID
+Create a `.env` file with:
 
-1. Go to [DocuSign Admin](https://admindemo.docusign.com/) (demo) or [DocuSign Admin](https://admin.docusign.com/) (production)
-2. Navigate to Settings > Apps and Keys
-3. Copy the "API Account ID"
+```env
+# DocuSign Click
+DOCUSIGN_ACCOUNT_ID=your_account_id
+DOCUSIGN_ACCESS_TOKEN=your_access_token
+DOCUSIGN_CLICKWRAP_ID=your_clickwrap_id
+DOCUSIGN_ENV=demo
 
-### Access Token
+# Mighty Networks
+MIGHTY_NETWORKS_API_KEY=your_api_key
+MIGHTY_NETWORKS_NETWORK_ID=your_network_id
 
-For testing/demo:
-1. Go to [DocuSign Developer Tools](https://developers.docusign.com/tools/api-access-token)
-2. Select "Click" API
-3. Generate and copy the token
-
-Note: Access tokens expire after ~8 hours. For production, set up JWT authentication.
-
-## The VLV Agreement
-
-This agent creates a clickwrap for:
-
-**Dermadventures LLC dba Veldheer Lineman Vault Participation Agreement**
-- Version: 2026 01
-- Button text: "I agree"
-
-The agreement covers:
-- Training, nutrition, and supplement guidance
-- Risk acknowledgment
-- Liability waiver
-- Minor participant provisions
-
-## Embedding on Your Website
-
-After creating the clickwrap, you'll receive embed code like this:
-
-```html
-<div id="ds-clickwrap"></div>
-<script src="https://demo.docusign.net/clickapi/sdk/latest/docusign-click.js"></script>
-<script>
-  docuSignClick.Clickwrap.render({
-    environment: 'demo',
-    accountId: 'YOUR_ACCOUNT_ID',
-    clickwrapId: 'YOUR_CLICKWRAP_ID',
-    clientUserId: 'unique-user-id-here',
-  }, '#ds-clickwrap');
-</script>
+# Gmail
+GMAIL_EMAIL=your_email@gmail.com
+GMAIL_PASSWORD=your_app_password
 ```
 
-Replace `clientUserId` with each user's unique identifier.
+## What Gets Sent
 
-## DM Template for Members
-
+### Direct Message (Mighty Networks)
 ```
-Action required to keep workout access.
+The VLV has updated its training guidelines please accept the updates
+in the following link.
 
-Please open this link and tap I agree.
+[personalized DocuSign link]
 
-[YOUR CLICKWRAP LINK]
+If you are under 18, do not tap I agree. Forward this message to your
+parent or legal guardian and have them tap I agree for you.
 
-If you are under 18, do not tap I agree. Forward this message to
-your parent or legal guardian and have them tap I agree for you.
-
-After you finish, reply DONE in this thread.
+After you finish, please reply DONE to this message.
 ```
+
+### Email
+- **Subject:** VLV Action Required
+- **Body:** Personalized email with HTML formatting and DocuSign link
+
+## Tracking & Audit Trail
+
+The system tracks:
+- Who was sent a DM and when
+- Who was sent an email and when
+- Who has accepted the agreement
+- Timestamp of acceptance
+
+DocuSign Click provides legal audit trail including:
+- IP address of signer
+- Timestamp
+- Document version accepted
+- User identification
+
+Run `npm run check-responses` to generate reports.
 
 ## Project Structure
 
 ```
 ├── src/
-│   ├── index.js              # Interactive CLI agent
-│   ├── setup.js              # Setup wizard
-│   ├── create-clickwrap.js   # Main clickwrap creation script
-│   ├── generate-pdf.js       # PDF generator
-│   ├── docusign-click-client.js  # DocuSign Click API client
-│   └── auth.js               # Authentication module
+│   ├── send-agreements.js    # Main send script
+│   ├── check-responses.js    # Response checker
+│   ├── member-reader.js      # Excel file parser
+│   ├── mighty-networks-client.js  # Mighty Networks API
+│   ├── email-sender.js       # Gmail sender
+│   ├── link-generator.js     # Personalized links
+│   ├── response-tracker.js   # Tracking system
+│   ├── create-clickwrap.js   # DocuSign setup
+│   └── docusign-click-client.js   # DocuSign API
+├── data/
+│   ├── *.xlsx               # Member export files
+│   ├── tracking.json        # Tracking database
+│   └── tracking-report.csv  # Export reports
 ├── agreements/
-│   ├── vlv-participation-agreement.txt  # Agreement text
-│   └── *.pdf                 # Generated PDFs
-├── docs/
-│   └── (documentation)
-├── .env.example              # Environment template
-├── .env                      # Your credentials (gitignored)
-└── package.json
+│   └── *.pdf               # Agreement PDFs
+└── .env                    # Your credentials
 ```
+
+## Gmail Setup
+
+If using Gmail with 2-Factor Authentication:
+1. Go to https://myaccount.google.com/apppasswords
+2. Generate an App Password for "Mail"
+3. Use that password in your `.env` file
 
 ## Security Notes
 
-- Never commit `.env` or private keys to git
-- Access tokens are short-lived (~8 hours)
-- Use JWT authentication for production
-- The `.gitignore` file excludes sensitive files
+- Never commit `.env` to git
+- Access tokens expire after ~8 hours
+- Use App Passwords for Gmail
+- Member data files are gitignored
 
-## Support
+## The VLV Agreement
 
-For DocuSign API questions:
-- [DocuSign Developer Center](https://developers.docusign.com/)
-- [Click API Documentation](https://developers.docusign.com/docs/click-api/)
+**Dermadventures LLC dba Veldheer Lineman Vault Participation Agreement**
+- Version: 2026 01
+- Covers: Training, nutrition, supplements, liability waiver
+- Minor provisions included
 
 ## License
 
