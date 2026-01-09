@@ -2,6 +2,7 @@
 /**
  * Send Agreements Script
  * Sends VLV participation agreements to all active members via DocuSign eSignature
+ * Also sends Mighty Networks DMs to notify members
  */
 
 import 'dotenv/config';
@@ -12,6 +13,7 @@ import readline from 'readline';
 import { loadMembers, validateMember } from './member-reader.js';
 import { getJWTAccessToken } from './jwt-auth.js';
 import { DocuSignESignClient } from './docusign-esign-client.js';
+import { MightyNetworksClient } from './mighty-networks-client.js';
 import { generatePDF, AGREEMENT_CONFIG } from './generate-pdf.js';
 
 const rl = readline.createInterface({
@@ -32,6 +34,10 @@ function getConfig() {
       integrationKey: process.env.DOCUSIGN_INTEGRATION_KEY,
       privateKeyPath: process.env.DOCUSIGN_PRIVATE_KEY_PATH || './private.key',
       environment: process.env.DOCUSIGN_ENV || 'demo'
+    },
+    mightyNetworks: {
+      apiKey: process.env.MIGHTY_NETWORKS_API_KEY,
+      networkId: process.env.MIGHTY_NETWORKS_NETWORK_ID
     }
   };
 }
@@ -44,7 +50,24 @@ function validateConfig(config) {
   if (!config.docusign.accountId) missing.push('DOCUSIGN_ACCOUNT_ID');
   if (!config.docusign.userId) missing.push('DOCUSIGN_USER_ID');
   if (!config.docusign.integrationKey) missing.push('DOCUSIGN_INTEGRATION_KEY');
+  if (!config.mightyNetworks.apiKey) missing.push('MIGHTY_NETWORKS_API_KEY');
+  if (!config.mightyNetworks.networkId) missing.push('MIGHTY_NETWORKS_NETWORK_ID');
   return missing;
+}
+
+/**
+ * Create DM message for member
+ */
+function createDMMessage(member) {
+  return `Hello ${member.firstName},
+
+The VLV has updated its training guidelines. Please check your email for a DocuSign request to review and sign the Participation Agreement.
+
+The email will come from DocuSign (dse@docusign.net). Please check your spam folder if you don't see it.
+
+If you are under 18, do not sign. Forward the DocuSign email to your parent or legal guardian and have them sign for you.
+
+Thank you for being part of VLV!`;
 }
 
 /**
@@ -175,7 +198,22 @@ async function main() {
     basePath
   });
 
-  // Step 5: Confirm before sending
+  // Step 5: Initialize Mighty Networks
+  console.log('Step 5: Connecting to Mighty Networks...');
+  const mightyClient = new MightyNetworksClient({
+    apiKey: config.mightyNetworks.apiKey,
+    networkId: config.mightyNetworks.networkId
+  });
+
+  const mnConnected = await mightyClient.verifyConnection();
+  if (mnConnected) {
+    console.log('  Mighty Networks connected');
+  } else {
+    console.log('  WARNING: Could not connect to Mighty Networks - DMs will be skipped');
+  }
+  console.log();
+
+  // Step 6: Confirm before sending
   console.log('='.repeat(60));
   console.log('READY TO SEND');
   console.log('='.repeat(60));
@@ -183,8 +221,8 @@ async function main() {
   console.log(`Members to contact: ${validMembers.length}`);
   console.log();
   console.log('Each member will receive:');
-  console.log('  - Email from DocuSign with the participation agreement');
-  console.log('  - They click the link and sign directly on DocuSign');
+  console.log('  1. DocuSign email with the participation agreement to sign');
+  console.log('  2. Mighty Networks DM notifying them to check their email');
   console.log();
   console.log('NOTE: DocuSign demo accounts have daily sending limits.');
   console.log('For production, ensure you have a paid DocuSign account.');
@@ -201,11 +239,13 @@ async function main() {
   console.log();
   console.log('Starting to send...\n');
 
-  // Step 6: Send to each member
+  // Step 7: Send to each member
   const results = {
     total: validMembers.length,
-    sent: 0,
-    failed: 0,
+    docusignSent: 0,
+    docusignFailed: 0,
+    dmsSent: 0,
+    dmsFailed: 0,
     errors: [],
     envelopes: []
   };
@@ -216,6 +256,8 @@ async function main() {
 
     console.log(`${progress} ${member.firstName} ${member.lastName} (${member.email})`);
 
+    // Send DocuSign envelope
+    let envelopeSent = false;
     try {
       const result = await esignClient.sendEnvelope({
         signerEmail: member.email,
@@ -232,31 +274,52 @@ If you are under 18, do not sign. Forward this to your parent or legal guardian 
 Thank you for being part of VLV!`
       });
 
-      results.sent++;
+      results.docusignSent++;
+      envelopeSent = true;
       results.envelopes.push({
         email: member.email,
         name: `${member.firstName} ${member.lastName}`,
         envelopeId: result.envelopeId
       });
-      console.log(`        Sent (Envelope: ${result.envelopeId})`);
+      console.log(`        DocuSign: Sent (${result.envelopeId})`);
 
     } catch (error) {
-      results.failed++;
+      results.docusignFailed++;
       results.errors.push({
+        type: 'docusign',
         email: member.email,
         name: `${member.firstName} ${member.lastName}`,
         error: error.message
       });
-      console.log(`        FAILED: ${error.message}`);
+      console.log(`        DocuSign: FAILED - ${error.message}`);
     }
 
-    // Rate limiting - DocuSign has API limits
+    // Send Mighty Networks DM (only if connected and DocuSign sent)
+    if (mnConnected && envelopeSent) {
+      try {
+        const dmMessage = createDMMessage(member);
+        const dmResult = await mightyClient.sendDirectMessageByEmail(member.email, dmMessage);
+
+        if (dmResult.success) {
+          results.dmsSent++;
+          console.log(`        DM: Sent`);
+        } else {
+          results.dmsFailed++;
+          console.log(`        DM: Failed - ${dmResult.error}`);
+        }
+      } catch (error) {
+        results.dmsFailed++;
+        console.log(`        DM: Failed - ${error.message}`);
+      }
+    }
+
+    // Rate limiting - DocuSign and Mighty Networks have API limits
     if (i < validMembers.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
   }
 
-  // Step 7: Summary
+  // Step 8: Summary
   console.log();
   console.log('='.repeat(60));
   console.log('SENDING COMPLETE');
@@ -264,14 +327,20 @@ Thank you for being part of VLV!`
   console.log();
   console.log('RESULTS:');
   console.log(`  Total members: ${results.total}`);
-  console.log(`  Envelopes sent: ${results.sent}`);
-  console.log(`  Failed: ${results.failed}`);
+  console.log();
+  console.log('  DocuSign Envelopes:');
+  console.log(`    Sent: ${results.docusignSent}`);
+  console.log(`    Failed: ${results.docusignFailed}`);
+  console.log();
+  console.log('  Mighty Networks DMs:');
+  console.log(`    Sent: ${results.dmsSent}`);
+  console.log(`    Failed: ${results.dmsFailed}`);
 
   if (results.errors.length > 0) {
     console.log();
     console.log('ERRORS:');
     for (const err of results.errors) {
-      console.log(`  ${err.name} (${err.email}): ${err.error}`);
+      console.log(`  [${err.type}] ${err.name} (${err.email}): ${err.error}`);
     }
   }
 
