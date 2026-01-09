@@ -10,7 +10,7 @@ import 'dotenv/config';
 import fs from 'fs/promises';
 import path from 'path';
 import { DocuSignClickClient } from './docusign-click-client.js';
-import { DocuSignAuth, SimpleAuth } from './auth.js';
+import { getJWTAccessToken } from './jwt-auth.js';
 import { generatePDF, AGREEMENT_CONFIG } from './generate-pdf.js';
 
 // VLV Clickwrap Configuration
@@ -35,35 +35,67 @@ async function createVLVClickwrap() {
   console.log('Step 1: Checking configuration...');
 
   const accountId = process.env.DOCUSIGN_ACCOUNT_ID;
-  const accessToken = process.env.DOCUSIGN_ACCESS_TOKEN;
+  const userId = process.env.DOCUSIGN_USER_ID;
+  const integrationKey = process.env.DOCUSIGN_INTEGRATION_KEY;
+  const privateKeyPath = process.env.DOCUSIGN_PRIVATE_KEY_PATH || './private.key';
   const env = process.env.DOCUSIGN_ENV || 'demo';
 
   if (!accountId) {
     console.error('ERROR: DOCUSIGN_ACCOUNT_ID is required in .env file');
-    console.log('\nTo get your Account ID:');
-    console.log('1. Log in to DocuSign Admin');
-    console.log('2. Go to Settings > Apps and Keys');
-    console.log('3. Copy the "API Account ID"');
     process.exit(1);
   }
 
-  if (!accessToken) {
-    console.error('ERROR: DOCUSIGN_ACCESS_TOKEN is required in .env file');
-    console.log('\nTo get an access token:');
-    console.log('1. Go to https://developers.docusign.com/tools/api-access-token');
-    console.log('2. Log in with your DocuSign developer account');
-    console.log('3. Generate an access token');
-    console.log('4. Copy it to your .env file');
+  if (!userId) {
+    console.error('ERROR: DOCUSIGN_USER_ID is required in .env file');
+    process.exit(1);
+  }
+
+  if (!integrationKey) {
+    console.error('ERROR: DOCUSIGN_INTEGRATION_KEY is required in .env file');
+    process.exit(1);
+  }
+
+  // Check private key exists
+  try {
+    await fs.access(privateKeyPath);
+  } catch {
+    console.error(`ERROR: Private key not found at: ${privateKeyPath}`);
+    console.error('Make sure you saved your private.key file in the Docusign-Agent folder');
     process.exit(1);
   }
 
   console.log(`  Account ID: ${accountId.substring(0, 8)}...`);
+  console.log(`  User ID: ${userId.substring(0, 8)}...`);
   console.log(`  Environment: ${env}`);
   console.log('  ✓ Configuration OK');
   console.log();
 
-  // Step 2: Generate or load PDF
-  console.log('Step 2: Preparing PDF document...');
+  // Step 2: Get JWT Access Token
+  console.log('Step 2: Authenticating with DocuSign...');
+
+  let accessToken;
+  try {
+    accessToken = await getJWTAccessToken({
+      integrationKey,
+      userId,
+      privateKeyPath,
+      environment: env
+    });
+    console.log('  ✓ Authentication successful');
+  } catch (error) {
+    console.error('ERROR: Authentication failed');
+    console.error(`  ${error.message}`);
+
+    if (error.message.includes('consent_required')) {
+      console.error('\nYou need to grant consent. Visit this URL:');
+      console.error(`https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20click.manage%20click.send&client_id=${integrationKey}&redirect_uri=https://developers.docusign.com/platform/auth/consent`);
+    }
+    process.exit(1);
+  }
+  console.log();
+
+  // Step 3: Generate or load PDF
+  console.log('Step 3: Preparing PDF document...');
 
   const pdfPath = path.join(process.cwd(), 'agreements', VLV_CLICKWRAP_CONFIG.pdfFileName);
 
@@ -82,8 +114,8 @@ async function createVLVClickwrap() {
   console.log(`  ✓ PDF loaded (${Math.round(pdfBuffer.length / 1024)} KB)`);
   console.log();
 
-  // Step 3: Initialize DocuSign Click client
-  console.log('Step 3: Connecting to DocuSign Click API...');
+  // Step 4: Initialize DocuSign Click client
+  console.log('Step 4: Connecting to DocuSign Click API...');
 
   const basePath = DocuSignClickClient.getBasePath(env);
   const clickClient = new DocuSignClickClient({
@@ -96,8 +128,8 @@ async function createVLVClickwrap() {
   console.log('  ✓ Client initialized');
   console.log();
 
-  // Step 4: Create the clickwrap
-  console.log('Step 4: Creating clickwrap agreement...');
+  // Step 5: Create the clickwrap
+  console.log('Step 5: Creating clickwrap agreement...');
   console.log(`  Name: ${VLV_CLICKWRAP_CONFIG.displayName}`);
   console.log(`  Version: ${VLV_CLICKWRAP_CONFIG.version}`);
   console.log(`  Button text: "${VLV_CLICKWRAP_CONFIG.buttonText}"`);
@@ -120,8 +152,8 @@ async function createVLVClickwrap() {
     console.log(`    Status: ${createResult.status}`);
     console.log();
 
-    // Step 5: Activate/publish the clickwrap
-    console.log('Step 5: Publishing clickwrap...');
+    // Step 6: Activate/publish the clickwrap
+    console.log('Step 6: Publishing clickwrap...');
 
     const activateResult = await clickClient.activateClickwrap(
       createResult.clickwrapId,
@@ -132,8 +164,8 @@ async function createVLVClickwrap() {
     console.log(`    Status: ${activateResult.status}`);
     console.log();
 
-    // Step 6: Get the sharing URL
-    console.log('Step 6: Generating sharing URLs...');
+    // Step 7: Get the sharing URL
+    console.log('Step 7: Generating sharing URLs...');
 
     const urlInfo = clickClient.getClickwrapUrl(createResult.clickwrapId);
 
@@ -141,6 +173,11 @@ async function createVLVClickwrap() {
     console.log('='.repeat(70));
     console.log('SUCCESS! Clickwrap Agreement Created');
     console.log('='.repeat(70));
+    console.log();
+    console.log('IMPORTANT - Add this to your .env file:');
+    console.log('-'.repeat(70));
+    console.log(`DOCUSIGN_CLICKWRAP_ID=${createResult.clickwrapId}`);
+    console.log('-'.repeat(70));
     console.log();
     console.log('CLICKWRAP DETAILS:');
     console.log(`  Name: ${VLV_CLICKWRAP_CONFIG.displayName}`);
@@ -154,22 +191,9 @@ async function createVLVClickwrap() {
     console.log('-'.repeat(70));
     console.log();
     console.log('NEXT STEPS:');
-    console.log('1. Copy the embed code above to your website');
-    console.log('2. Replace "unique-user-id-here" with each user\'s unique ID');
-    console.log('3. Users can click "I agree" to accept the agreement');
-    console.log('4. View accepted agreements in DocuSign Admin > Click');
+    console.log('1. Add the DOCUSIGN_CLICKWRAP_ID to your .env file');
+    console.log('2. Run: npm run send-agreements');
     console.log();
-    console.log('DM TEMPLATE FOR MEMBERS:');
-    console.log('-'.repeat(70));
-    console.log('Action required to keep workout access.');
-    console.log();
-    console.log('[Embed the clickwrap on your website and share the link here]');
-    console.log();
-    console.log('If you are under 18, do not tap I agree. Forward this message to');
-    console.log('your parent or legal guardian and have them tap I agree for you.');
-    console.log();
-    console.log('After you finish, reply DONE in this thread.');
-    console.log('-'.repeat(70));
 
     // Save results to file
     const resultsPath = path.join(process.cwd(), 'clickwrap-result.json');
@@ -179,7 +203,6 @@ async function createVLVClickwrap() {
       config: VLV_CLICKWRAP_CONFIG,
       createdAt: new Date().toISOString()
     }, null, 2));
-    console.log();
     console.log(`Results saved to: ${resultsPath}`);
 
     return createResult;
@@ -187,20 +210,17 @@ async function createVLVClickwrap() {
   } catch (error) {
     console.error();
     console.error('ERROR creating clickwrap:');
+    console.error(`  ${error.message}`);
 
-    if (error.response) {
-      console.error(`  Status: ${error.response.status}`);
-      console.error(`  Message: ${JSON.stringify(error.response.body || error.response.data, null, 2)}`);
-    } else {
-      console.error(`  ${error.message}`);
+    if (error.body) {
+      console.error(`  Response: ${error.body}`);
     }
 
     console.error();
     console.error('TROUBLESHOOTING:');
-    console.error('1. Verify your access token is valid and not expired');
+    console.error('1. Make sure you granted consent to the app');
     console.error('2. Check that your account has Click enabled');
-    console.error('3. Ensure you have the correct Account ID');
-    console.error('4. For demo accounts, use DOCUSIGN_ENV=demo');
+    console.error('3. Verify the private.key file is correct');
 
     process.exit(1);
   }

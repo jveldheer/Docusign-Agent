@@ -30,7 +30,9 @@ function getConfig() {
     // DocuSign Click
     docusign: {
       accountId: process.env.DOCUSIGN_ACCOUNT_ID,
-      accessToken: process.env.DOCUSIGN_ACCESS_TOKEN,
+      userId: process.env.DOCUSIGN_USER_ID,
+      integrationKey: process.env.DOCUSIGN_INTEGRATION_KEY,
+      privateKeyPath: process.env.DOCUSIGN_PRIVATE_KEY_PATH || './private.key',
       clickwrapId: process.env.DOCUSIGN_CLICKWRAP_ID,
       environment: process.env.DOCUSIGN_ENV || 'demo'
     },
@@ -54,7 +56,8 @@ function validateConfig(config) {
   const missing = [];
 
   if (!config.docusign.accountId) missing.push('DOCUSIGN_ACCOUNT_ID');
-  if (!config.docusign.accessToken) missing.push('DOCUSIGN_ACCESS_TOKEN');
+  if (!config.docusign.userId) missing.push('DOCUSIGN_USER_ID');
+  if (!config.docusign.integrationKey) missing.push('DOCUSIGN_INTEGRATION_KEY');
   if (!config.docusign.clickwrapId) missing.push('DOCUSIGN_CLICKWRAP_ID');
   if (!config.mightyNetworks.apiKey) missing.push('MIGHTY_NETWORKS_API_KEY');
   if (!config.mightyNetworks.networkId) missing.push('MIGHTY_NETWORKS_NETWORK_ID');
