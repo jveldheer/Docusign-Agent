@@ -41,10 +41,10 @@ function normalizeMember(rawMember) {
     firstName: '',
     lastName: '',
     fullName: rawMember['Name'] || rawMember['name'] || rawMember['Full Name'] || rawMember['Member Name'] || '',
-    status: rawMember['Status'] || rawMember['status'] || rawMember['Member Status'] || '',
-    plan: rawMember['Plan'] || rawMember['plan'] || rawMember['Plan Name'] || '',
+    status: rawMember['Status'] || rawMember['status'] || rawMember['Member Status'] || rawMember['Payment Status'] || rawMember['payment_status'] || '',
+    plan: rawMember['Plan'] || rawMember['plan'] || rawMember['Plan Name'] || rawMember['Membership Type'] || '',
     memberId: rawMember['Member ID'] || rawMember['ID'] || rawMember['id'] || '',
-    joinDate: rawMember['Join Date'] || rawMember['Joined'] || rawMember['Created'] || '',
+    joinDate: rawMember['Join Date'] || rawMember['Joined'] || rawMember['Created'] || rawMember['Date Paid'] || '',
     raw: rawMember
   };
 
@@ -78,8 +78,19 @@ function normalizeMember(rawMember) {
  * @returns {boolean} True if member is active
  */
 function isActiveMember(member) {
-  const activeStatuses = ['active', 'paid', 'subscribed', 'current'];
-  return activeStatuses.some(status => member.status.includes(status));
+  // Handle various payment/membership status values from Mighty Networks
+  const activeStatuses = ['active', 'paid', 'subscribed', 'current', 'succeeded', 'complete', 'trialing'];
+  const inactiveStatuses = ['canceled', 'cancelled', 'expired', 'failed', 'pending', 'unpaid', 'past_due'];
+
+  const statusLower = member.status.toLowerCase();
+
+  // If status matches an inactive pattern, return false
+  if (inactiveStatuses.some(s => statusLower.includes(s))) {
+    return false;
+  }
+
+  // If status matches an active pattern, return true
+  return activeStatuses.some(status => statusLower.includes(status));
 }
 
 /**
