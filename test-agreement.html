@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VLV Participation Agreement - Test</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+    }
+    #ds-clickwrap {
+      min-height: 400px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 20px;
+      background: #fafafa;
+    }
+    .loading {
+      text-align: center;
+      color: #666;
+      padding: 40px;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e7f3ff;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #0066cc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Veldheer Lineman Vault</h1>
+    <p class="subtitle">Participation Agreement - Test Page</p>
+
+    <div id="ds-clickwrap">
+      <div class="loading">Loading agreement...</div>
+    </div>
+
+    <div class="info">
+      <strong>Test Mode:</strong> This is a test of the DocuSign Click agreement.
+      After clicking "I agree", your acceptance will be recorded.
+    </div>
+  </div>
+
+  <script src="https://demo.docusign.net/clickapi/sdk/latest/docusign-click.js"></script>
+  <script>
+    // Wait for DocuSign Click SDK to load
+    window.addEventListener('load', function() {
+      if (typeof docuSignClick === 'undefined') {
+        document.getElementById('ds-clickwrap').innerHTML =
+          '<p style="color: red;">Error: DocuSign Click SDK failed to load</p>';
+        return;
+      }
+
+      docuSignClick.Clickwrap.render({
+        environment: 'demo',
+        accountId: 'a84c37c7-26b1-4dd8-b75c-384d6b534816',
+        clickwrapId: 'cee8293b-8cc3-4a18-968d-555a36e71d78',
+        clientUserId: 'jared.veldheer@gmail.com',
+        onAgreed: function(agreement) {
+          console.log('Agreement accepted:', agreement);
+          alert('Thank you! Your agreement has been recorded.');
+        },
+        onDeclined: function() {
+          console.log('Agreement declined');
+        },
+        onError: function(error) {
+          console.error('DocuSign Click error:', error);
+          document.getElementById('ds-clickwrap').innerHTML =
+            '<p style="color: red;">Error loading agreement: ' + (error.message || 'Unknown error') + '</p>';
+        }
+      }, '#ds-clickwrap');
+    });
+  </script>
+</body>
+</html>
