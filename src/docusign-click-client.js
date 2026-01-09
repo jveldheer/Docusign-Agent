@@ -1,9 +1,9 @@
 /**
  * DocuSign Click API Client
  * Handles authentication and API calls for DocuSign Click
+ * Uses direct HTTP calls for reliability
  */
 
-import docusignClick from 'docusign-click';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -15,11 +15,6 @@ class DocuSignClickClient {
     this.accountId = config.accountId;
     this.basePath = config.basePath || 'https://demo.docusign.net/clickapi';
     this.accessToken = config.accessToken;
-
-    // Initialize API client
-    this.apiClient = new docusignClick.ApiClient();
-    this.apiClient.setBasePath(this.basePath);
-    this.apiClient.addDefaultHeader('Authorization', `Bearer ${this.accessToken}`);
   }
 
   /**
@@ -29,6 +24,34 @@ class DocuSignClickClient {
     return env === 'production'
       ? 'https://www.docusign.net/clickapi'
       : 'https://demo.docusign.net/clickapi';
+  }
+
+  /**
+   * Make an API request
+   */
+  async request(endpoint, options = {}) {
+    const url = `${this.basePath}${endpoint}`;
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        ...options.headers
+      }
+    });
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      const error = new Error(`DocuSign API error: ${response.status}`);
+      error.status = response.status;
+      error.body = responseText;
+      throw error;
+    }
+
+    return responseText ? JSON.parse(responseText) : {};
   }
 
   /**
@@ -45,34 +68,33 @@ class DocuSignClickClient {
       requireReacceptance = false
     } = options;
 
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
-    // Build the clickwrap request
-    const clickwrapRequest = new docusignClick.ClickwrapRequest();
-    clickwrapRequest.clickwrapName = name;
-    clickwrapRequest.displaySettings = new docusignClick.DisplaySettings();
-    clickwrapRequest.displaySettings.displayName = displayName || name;
-    clickwrapRequest.displaySettings.consentButtonText = buttonText;
-    clickwrapRequest.displaySettings.downloadable = true;
-    clickwrapRequest.displaySettings.format = 'modal';
-    clickwrapRequest.displaySettings.hasAccept = true;
-    clickwrapRequest.displaySettings.mustRead = true;
-    clickwrapRequest.displaySettings.requireAccept = true;
-    clickwrapRequest.displaySettings.sendToEmail = false;
-    clickwrapRequest.requireReacceptance = requireReacceptance;
-
-    // Add documents
-    clickwrapRequest.documents = documents.map((doc, index) => {
-      const document = new docusignClick.Document();
-      document.documentBase64 = doc.base64Content;
-      document.documentName = doc.name;
-      document.fileExtension = doc.extension || 'pdf';
-      document.order = index;
-      return document;
-    });
+    const clickwrapRequest = {
+      clickwrapName: name,
+      displaySettings: {
+        displayName: displayName || name,
+        consentButtonText: buttonText,
+        downloadable: true,
+        format: 'modal',
+        hasAccept: true,
+        mustRead: true,
+        requireAccept: true,
+        sendToEmail: false
+      },
+      requireReacceptance: requireReacceptance,
+      documents: documents.map((doc, index) => ({
+        documentBase64: doc.base64Content,
+        documentName: doc.name,
+        fileExtension: doc.extension || 'pdf',
+        order: index
+      }))
+    };
 
     try {
-      const result = await accountsApi.createClickwrap(this.accountId, { clickwrapRequest });
+      const result = await this.request(`/v1/accounts/${this.accountId}/clickwraps`, {
+        method: 'POST',
+        body: JSON.stringify(clickwrapRequest)
+      });
+
       return {
         success: true,
         clickwrapId: result.clickwrapId,
@@ -82,7 +104,10 @@ class DocuSignClickClient {
         status: result.status
       };
     } catch (error) {
-      console.error('Error creating clickwrap:', error);
+      console.error('Error creating clickwrap:', error.message);
+      if (error.body) {
+        console.error('Response:', error.body);
+      }
       throw error;
     }
   }
@@ -94,17 +119,17 @@ class DocuSignClickClient {
    * @returns {Promise<Object>} Activation result
    */
   async activateClickwrap(clickwrapId, versionId) {
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
-    const clickwrapVersionRequest = new docusignClick.ClickwrapRequest();
-    clickwrapVersionRequest.status = 'active';
+    const updateRequest = {
+      status: 'active'
+    };
 
     try {
-      const result = await accountsApi.updateClickwrapVersion(
-        this.accountId,
-        clickwrapId,
-        versionId,
-        { clickwrapRequest: clickwrapVersionRequest }
+      const result = await this.request(
+        `/v1/accounts/${this.accountId}/clickwraps/${clickwrapId}/versions/${versionId}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify(updateRequest)
+        }
       );
 
       return {
@@ -114,7 +139,7 @@ class DocuSignClickClient {
         status: result.status
       };
     } catch (error) {
-      console.error('Error activating clickwrap:', error);
+      console.error('Error activating clickwrap:', error.message);
       throw error;
     }
   }
@@ -160,13 +185,11 @@ class DocuSignClickClient {
    * @returns {Promise<Array>} List of clickwraps
    */
   async listClickwraps() {
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
     try {
-      const result = await accountsApi.getClickwraps(this.accountId);
+      const result = await this.request(`/v1/accounts/${this.accountId}/clickwraps`);
       return result.clickwraps || [];
     } catch (error) {
-      console.error('Error listing clickwraps:', error);
+      console.error('Error listing clickwraps:', error.message);
       throw error;
     }
   }
@@ -177,13 +200,11 @@ class DocuSignClickClient {
    * @returns {Promise<Object>} Clickwrap details
    */
   async getClickwrap(clickwrapId) {
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
     try {
-      const result = await accountsApi.getClickwrap(this.accountId, clickwrapId);
+      const result = await this.request(`/v1/accounts/${this.accountId}/clickwraps/${clickwrapId}`);
       return result;
     } catch (error) {
-      console.error('Error getting clickwrap:', error);
+      console.error('Error getting clickwrap:', error.message);
       throw error;
     }
   }
@@ -194,13 +215,11 @@ class DocuSignClickClient {
    * @returns {Promise<Array>} User agreements
    */
   async getUserAgreements(clickwrapId) {
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
     try {
-      const result = await accountsApi.getClickwrapAgreements(this.accountId, clickwrapId);
+      const result = await this.request(`/v1/accounts/${this.accountId}/clickwraps/${clickwrapId}/users`);
       return result.userAgreements || [];
     } catch (error) {
-      console.error('Error getting user agreements:', error);
+      console.error('Error getting user agreements:', error.message);
       throw error;
     }
   }
@@ -211,13 +230,13 @@ class DocuSignClickClient {
    * @returns {Promise<boolean>} Success status
    */
   async deleteClickwrap(clickwrapId) {
-    const accountsApi = new docusignClick.AccountsApi(this.apiClient);
-
     try {
-      await accountsApi.deleteClickwrap(this.accountId, clickwrapId);
+      await this.request(`/v1/accounts/${this.accountId}/clickwraps/${clickwrapId}`, {
+        method: 'DELETE'
+      });
       return true;
     } catch (error) {
-      console.error('Error deleting clickwrap:', error);
+      console.error('Error deleting clickwrap:', error.message);
       throw error;
     }
   }
