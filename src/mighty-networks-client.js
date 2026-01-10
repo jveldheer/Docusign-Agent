@@ -3,7 +3,7 @@
  * Handles API interactions for sending direct messages
  */
 
-const MIGHTY_NETWORKS_API_BASE = 'https://www.mightynetworks.com/api/v1';
+const MIGHTY_NETWORKS_API_BASE = 'https://api.mighty.co/api/v1';
 
 /**
  * Mighty Networks API Client
